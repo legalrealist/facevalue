@@ -1,5 +1,7 @@
 # facevalue
 
+[![CI](https://github.com/legalrealist/facevalue/actions/workflows/ci.yml/badge.svg)](https://github.com/legalrealist/facevalue/actions/workflows/ci.yml)
+
 Don't take documents at face value.
 
 Documents can be crafted so that what humans see differs from what extraction tools read. facevalue scans files at the raw structural level — bypassing the same extraction libraries that are vulnerable — and flags divergence before your pipeline trusts the extracted data.
