@@ -1,0 +1,21 @@
+{
+  "name": "sheetguard",
+  "version": "1.0.0",
+  "description": "Detect parser differential attacks in XLSX, PDF, and DOCX files — where displayed content differs from extracted data",
+  "author": "Hao Zhu",
+  "license": "MIT",
+  "skills": [
+    {
+      "name": "scan",
+      "path": "skills/scan/SKILL.md",
+      "command": "scan"
+    }
+  ],
+  "hooks": {
+    "path": "hooks/hooks.json"
+  },
+  "dependencies": {
+    "python": ">=3.8",
+    "pip": ["lxml", "pikepdf", "fonttools"]
+  }
+}
