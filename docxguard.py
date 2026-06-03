@@ -193,6 +193,16 @@ def _check_embedded_font_cmap(z, font_info):
         })
 
     tt.close()
+
+    # If no structural findings, try render-and-OCR as a last resort
+    if not findings:
+        try:
+            from glyphcheck import check_font, is_available
+            if is_available():
+                findings.extend(check_font(font_bytes, font_name))
+        except ImportError:
+            pass
+
     return findings
 
 

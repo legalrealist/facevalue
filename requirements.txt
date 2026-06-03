@@ -1,3 +1,5 @@
 lxml
 pikepdf
 fonttools
+Pillow
+pytesseract

@@ -2,7 +2,7 @@
 pdfguard.py -- Detect parser differential attacks in PDF files.
 
 Scans PDF fonts and content streams for manipulation that causes extracted
-text to differ from displayed text. Detects three attack classes:
+text to differ from displayed text. Detects four attack classes:
 
 1. /ToUnicode CMap remapping — PDF-level override that makes extraction
    read different characters than the font displays.
@@ -11,6 +11,9 @@ text to differ from displayed text. Detects three attack classes:
    Use Area (PUA) codepoints that produce garbage on extraction.
 3. /ActualText spans — marked content operators that silently override
    extracted text for a region without changing the visual rendering.
+4. Glyph-outline verification — renders each glyph and OCRs it to catch
+   fonts where the outlines have been swapped (the replacement variant
+   that has no structural signal).
 """
 
 import io
@@ -255,6 +258,16 @@ def _check_embedded_font_cmap(font_obj, font_name):
         })
 
     tt.close()
+
+    # If no structural findings, try render-and-OCR as a last resort
+    if not findings:
+        try:
+            from glyphcheck import check_font, is_available
+            if is_available():
+                findings.extend(check_font(font_bytes, font_name))
+        except ImportError:
+            pass
+
     return findings
 
 
