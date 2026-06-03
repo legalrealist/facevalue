@@ -1,14 +1,23 @@
 """
-docxguard.py -- Detect parser differential attacks in DOCX files.
+docxguard.py — Parser differential detection for DOCX.
 
-Checks embedded font cmap manipulation (noroboto with OOXML de-obfuscation),
-hidden text, revision marks, field codes, and AlternateContent blocks.
+DOCX is a ZIP of XML parts. The text lives in <w:t> elements —
+extraction tools read those and never look at the embedded fonts.
+But Word renders using the embedded fonts, which can lie: the noroboto
+attack embeds a TrueType font whose cmap maps codepoints to wrong
+glyphs. The XML says "Delaware", the font draws "Maryland".
+
+OOXML wraps embedded fonts in a lightweight XOR obfuscation (the font
+GUID reversed as a 16-byte key over the first 32 bytes). We reverse
+that to get at the raw TTF and check its cmap table.
+
+Beyond fonts: hidden text (<w:vanish>) is in the XML but not rendered,
+unresolved track changes create extractor disagreement, DDE field codes
+execute external commands with misleading cached display values.
 """
 
 import io
 import os
-import re
-import sys
 import uuid
 import zipfile
 from lxml import etree
@@ -24,9 +33,12 @@ MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 PKG = "http://schemas.openxmlformats.org/package/2006/relationships"
 
 
-def _deobfuscate_font(font_bytes, font_guid):
+def _deobfuscate(font_bytes, guid_str):
+    """Reverse the OOXML font obfuscation — XOR first 32 bytes with
+    the font's GUID reversed. Spec says this deters casual extraction.
+    It doesn't deter us."""
     try:
-        key = uuid.UUID(font_guid).bytes[::-1]
+        key = uuid.UUID(guid_str).bytes[::-1]
     except ValueError:
         return font_bytes
     data = bytearray(font_bytes)
@@ -35,177 +47,135 @@ def _deobfuscate_font(font_bytes, font_guid):
     return bytes(data)
 
 
-def _find_embedded_fonts(z):
-    fonts = []
+def _find_fonts(z):
     try:
         root = etree.fromstring(z.read("word/fontTable.xml"))
     except KeyError:
-        return fonts
+        return []
 
     rels = {}
     try:
-        for rel in etree.fromstring(z.read("word/_rels/fontTable.xml.rels")).findall(f"{{{PKG}}}Relationship"):
-            rid = rel.get("Id", "")
-            target = rel.get("Target", "")
+        for r in etree.fromstring(z.read("word/_rels/fontTable.xml.rels")).findall(f"{{{PKG}}}Relationship"):
+            rid, target = r.get("Id", ""), r.get("Target", "")
             rels[rid] = f"word/{target}" if not target.startswith("/") else target.lstrip("/")
     except KeyError:
         pass
 
-    for font_elem in root.findall(f"{{{WML}}}font"):
-        name = font_elem.get(f"{{{WML}}}name", "")
+    fonts = []
+    for fe in root.findall(f"{{{WML}}}font"):
+        name = fe.get(f"{{{WML}}}name", "")
         for style in ("embedRegular", "embedBold", "embedItalic", "embedBoldItalic"):
-            embed = font_elem.find(f"{{{WML}}}{style}")
-            if embed is None:
-                continue
-            rid = embed.get(f"{{{REL}}}id", "")
-            guid = embed.get(f"{{{WML}}}fontKey", "").strip("{}")
-            path = rels.get(rid, "")
+            embed = fe.find(f"{{{WML}}}{style}")
+            if embed is None: continue
+            path = rels.get(embed.get(f"{{{REL}}}id", ""), "")
             if path:
-                fonts.append({"name": name, "path": path, "guid": guid})
+                fonts.append({"name": name, "path": path,
+                              "guid": embed.get(f"{{{WML}}}fontKey", "").strip("{}")})
     return fonts
 
 
-def _check_embedded_font_cmap(z, font_info):
+def _check_font_cmap(z, info):
     if TTFont is None:
         return []
-    findings = []
-    font_name = font_info["name"]
-
+    name = info["name"]
     try:
-        font_bytes = z.read(font_info["path"])
+        raw = z.read(info["path"])
     except KeyError:
-        return findings
+        return []
 
-    if font_info["guid"]:
-        font_bytes = _deobfuscate_font(font_bytes, font_info["guid"])
-
+    font_bytes = _deobfuscate(raw, info["guid"]) if info["guid"] else raw
     try:
         tt = TTFont(io.BytesIO(font_bytes))
     except Exception:
-        return findings
+        return []
 
     cmap = tt.getBestCmap()
-    if cmap is None:
-        tt.close()
-        return findings
+    if not cmap:
+        tt.close(); return []
 
-    pua_count = 0
-    for codepoint, glyph_name in cmap.items():
-        if 0xE000 <= codepoint <= 0xF8FF or 0xF0000 <= codepoint <= 0xFFFFD:
-            pua_count += 1
-        elif (0x41 <= codepoint <= 0x5A or 0x61 <= codepoint <= 0x7A):
-            expected = chr(codepoint)
-            if len(glyph_name) == 1 and glyph_name.isalpha() and glyph_name != expected:
-                findings.append({
-                    "type": "font_cmap_mismatch", "font": font_name, "severity": "critical",
-                    "message": f"Embedded font '{font_name}' glyph '{glyph_name}' mapped to U+{codepoint:04X} ('{expected}')",
-                })
-
-    if pua_count > 2:
-        findings.append({
-            "type": "font_cmap_pua", "font": font_name, "severity": "critical",
-            "message": f"Embedded font '{font_name}' maps {pua_count} codepoints from Private Use Area",
-        })
+    findings, pua = [], 0
+    for cp, glyph in cmap.items():
+        if 0xE000 <= cp <= 0xF8FF or 0xF0000 <= cp <= 0xFFFFD:
+            pua += 1
+        elif (0x41 <= cp <= 0x5A or 0x61 <= cp <= 0x7A):
+            if len(glyph) == 1 and glyph.isalpha() and glyph != chr(cp):
+                findings.append({"severity": "critical", "font": name,
+                    "message": f"Embedded font '{name}' glyph '{glyph}' mapped to U+{cp:04X} ('{chr(cp)}')"})
+    if pua > 2:
+        findings.append({"severity": "critical", "font": name,
+            "message": f"Embedded font '{name}' maps {pua} codepoints from Private Use Area"})
 
     tt.close()
     return findings
 
 
-def _check_hidden_text(z):
+def _check_doc_xml(z):
+    """Parse document.xml once and check for hidden text, revisions,
+    DDE field codes, and AlternateContent blocks."""
     try:
         root = etree.fromstring(z.read("word/document.xml"))
     except KeyError:
         return []
 
-    hidden_runs = []
+    findings = []
+
+    # Hidden text — in the XML but styled invisible
+    hidden = []
     for run in root.iter(f"{{{WML}}}r"):
         rpr = run.find(f"{{{WML}}}rPr")
-        if rpr is None:
-            continue
-        vanish = rpr.find(f"{{{WML}}}vanish")
-        if vanish is None:
-            continue
-        if vanish.get(f"{{{WML}}}val", "true") in ("false", "0"):
+        if rpr is None: continue
+        v = rpr.find(f"{{{WML}}}vanish")
+        if v is None or v.get(f"{{{WML}}}val", "true") in ("false", "0"):
             continue
         texts = [t.text for t in run.iter(f"{{{WML}}}t") if t.text]
         if texts:
-            hidden_runs.append("".join(texts))
+            hidden.append("".join(texts))
+    if hidden:
+        total = sum(len(t) for t in hidden)
+        findings.append({"severity": "warning",
+            "message": f"{len(hidden)} hidden run(s) ({total} chars) — extractors read this, humans don't. Sample: '{hidden[0][:80]}'"})
 
-    if hidden_runs:
-        total = sum(len(t) for t in hidden_runs)
-        return [{"type": "hidden_text", "severity": "warning",
-                 "message": f"{len(hidden_runs)} hidden text run(s) ({total} chars) — extractors read this but humans don't see it. Sample: '{hidden_runs[0][:80]}'"}]
-    return []
-
-
-def _check_revision_marks(z):
-    try:
-        root = etree.fromstring(z.read("word/document.xml"))
-    except KeyError:
-        return []
-
-    findings = []
+    # Revision marks — deleted text lingers in XML
     deleted = [dt.text for dt in root.iter(f"{{{WML}}}delText") if dt.text]
     inserted = [t.text for ins in root.iter(f"{{{WML}}}ins") for t in ins.iter(f"{{{WML}}}t") if t.text]
-
     if deleted:
-        total = sum(len(t) for t in deleted)
-        findings.append({"type": "revision_deleted", "severity": "warning",
-                         "message": f"{len(deleted)} deleted text segment(s) ({total} chars) still in XML. Sample: '{deleted[0][:80]}'"})
+        findings.append({"severity": "warning",
+            "message": f"{len(deleted)} deleted segment(s) ({sum(len(t) for t in deleted)} chars) still in XML. Sample: '{deleted[0][:80]}'"})
     if inserted and deleted:
-        findings.append({"type": "revision_mixed", "severity": "warning",
-                         "message": f"Unresolved track changes ({len(inserted)} insertions, {len(deleted)} deletions)"})
-    return findings
+        findings.append({"severity": "warning",
+            "message": f"Unresolved track changes ({len(inserted)} insertions, {len(deleted)} deletions)"})
 
-
-def _check_field_codes(z):
-    try:
-        root = etree.fromstring(z.read("word/document.xml"))
-    except KeyError:
-        return []
-
+    # DDE field codes
     dde = sum(1 for i in root.iter(f"{{{WML}}}instrText")
               if i.text and i.text.strip().upper().startswith(("DDE", "DDEAUTO")))
     if dde:
-        return [{"type": "field_dde", "severity": "critical",
-                 "message": f"{dde} DDE field code(s) — execute external commands with misleading cached text"}]
-    return []
+        findings.append({"severity": "critical",
+            "message": f"{dde} DDE field code(s) — external commands with misleading cached text"})
+
+    # AlternateContent
+    alt = sum(1 for _ in root.iter(f"{{{MC}}}AlternateContent"))
+    if alt:
+        findings.append({"severity": "warning",
+            "message": f"{alt} AlternateContent block(s) — different content for different consumers"})
+
+    return findings
 
 
-def _check_alternate_content(z):
+def scan_docx(path):
     try:
-        root = etree.fromstring(z.read("word/document.xml"))
-    except KeyError:
-        return []
-
-    count = sum(1 for _ in root.iter(f"{{{MC}}}AlternateContent"))
-    if count:
-        return [{"type": "alternate_content", "severity": "warning",
-                 "message": f"{count} AlternateContent block(s) — different content for different consumers"}]
-    return []
-
-
-def scan_docx(docx_path):
-    try:
-        z = zipfile.ZipFile(docx_path)
+        z = zipfile.ZipFile(path)
     except (zipfile.BadZipFile, FileNotFoundError) as e:
-        return {"file": os.path.basename(docx_path), "error": str(e),
+        return {"file": os.path.basename(path), "error": str(e),
                 "summary": {"total_findings": 0, "critical": 0, "warning": 0}, "findings": []}
 
     findings = []
-    for font_info in _find_embedded_fonts(z):
-        findings.extend(_check_embedded_font_cmap(z, font_info))
-    findings.extend(_check_hidden_text(z))
-    findings.extend(_check_revision_marks(z))
-    findings.extend(_check_field_codes(z))
-    findings.extend(_check_alternate_content(z))
+    for info in _find_fonts(z):
+        findings.extend(_check_font_cmap(z, info))
+    findings.extend(_check_doc_xml(z))
     z.close()
 
     findings = [f for f in findings if f["severity"] in ("critical", "warning")]
-    critical = [f for f in findings if f["severity"] == "critical"]
-    warnings = [f for f in findings if f["severity"] == "warning"]
-    return {
-        "file": os.path.basename(docx_path),
-        "summary": {"total_findings": len(findings), "critical": len(critical), "warning": len(warnings)},
-        "findings": findings,
-    }
+    crit = sum(1 for f in findings if f["severity"] == "critical")
+    return {"file": os.path.basename(path),
+            "summary": {"total_findings": len(findings), "critical": crit, "warning": len(findings) - crit},
+            "findings": findings}
