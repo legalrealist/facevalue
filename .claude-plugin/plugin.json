@@ -1,21 +1,18 @@
 {
   "name": "facevalue",
-  "version": "1.0.0",
   "description": "Don't take documents at face value — detect parser differential attacks in XLSX, PDF, and DOCX",
-  "author": "Hao Zhu",
-  "license": "MIT",
-  "skills": [
-    {
-      "name": "scan",
-      "path": "skills/scan/SKILL.md",
-      "command": "scan"
-    }
-  ],
-  "hooks": {
-    "path": "hooks/hooks.json"
+  "version": "1.0.0",
+  "author": {
+    "name": "Hao Zhu"
   },
-  "dependencies": {
-    "python": ">=3.8",
-    "pip": ["lxml", "pikepdf", "fonttools"]
-  }
+  "license": "MIT",
+  "keywords": [
+    "security",
+    "parser-differential",
+    "xlsx",
+    "pdf",
+    "docx",
+    "document-integrity",
+    "noroboto"
+  ]
 }
