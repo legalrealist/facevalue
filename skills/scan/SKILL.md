@@ -1,24 +1,24 @@
 ---
 name: scan
 description: >
-  Scan XLSX, PDF, and DOCX files for parser differential attacks — where displayed
-  content differs from what extraction tools read. Detects XLSX static number format
-  deception, PDF /ToUnicode CMap remapping, PDF/DOCX embedded font cmap manipulation
-  (noroboto-style), /ActualText overrides, DOCX hidden text, revision marks, and
-  field codes. Use whenever checking document integrity, before analyzing financials
-  or extracting data from contracts, when doing due diligence on documents from
-  counterparties, or when the user mentions "sheetguard", "format divergence",
+  Don't take documents at face value. Scan XLSX, PDF, and DOCX files for parser
+  differential attacks — where displayed content differs from what extraction tools
+  read. Detects XLSX static number format deception, PDF /ToUnicode and font cmap
+  manipulation (noroboto-style), /ActualText overrides, DOCX hidden text, revision
+  marks, and field codes. Use whenever checking document integrity, before analyzing
+  financials or extracting data from contracts, when doing due diligence on documents
+  from counterparties, or when the user mentions "facevalue", "format divergence",
   "parser differential", "poisoned spreadsheet", "font manipulation", or "noroboto".
   Use proactively before trusting extracted values from any XLSX, PDF, or DOCX in a
   legal, financial, or compliance context.
 ---
 
-# SheetGuard: Document Parser Differential Scanner
+# facevalue — Document Parser Differential Scanner
 
 ## How to use
 
 ```bash
-python3 {{SKILL_PATH}}/../../sheetguard.py <path-to-file-or-directory>
+python3 {{SKILL_PATH}}/../../facevalue.py <path-to-file-or-directory>
 ```
 
 Handles XLSX, PDF, and DOCX. For JSON output add `--json`.

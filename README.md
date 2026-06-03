@@ -1,8 +1,8 @@
-# SheetGuard
+# facevalue
 
-Detect parser differential attacks in XLSX, PDF, and DOCX files.
+Don't take documents at face value.
 
-Documents can be crafted so that what humans see differs from what extraction tools read. SheetGuard scans files at the raw structural level — bypassing the same extraction libraries that are vulnerable — and flags divergence before your pipeline trusts the extracted data.
+Documents can be crafted so that what humans see differs from what extraction tools read. facevalue scans files at the raw structural level — bypassing the same extraction libraries that are vulnerable — and flags divergence before your pipeline trusts the extracted data.
 
 ## The problem
 
@@ -37,42 +37,34 @@ pip install lxml pikepdf fonttools
 ## Usage
 
 ```bash
-# Scan a single file
-python3 sheetguard.py document.xlsx
-python3 sheetguard.py report.pdf
-python3 sheetguard.py contract.docx
-
-# Scan a directory (all XLSX, PDF, DOCX files)
-python3 sheetguard.py ./documents/
-
-# JSON output
-python3 sheetguard.py --json document.xlsx
+python3 facevalue.py document.xlsx
+python3 facevalue.py report.pdf
+python3 facevalue.py contract.docx
+python3 facevalue.py ./documents/
+python3 facevalue.py --json document.xlsx
 ```
 
 ## Output
 
 ```
-[SAFE] No format divergence detected in: financials.xlsx
+[SAFE] No divergence in: financials.xlsx
 
-[DIVERGENCE_DETECTED] 27 cells across 1 file(s) display values that differ from raw data.
+[DIVERGENCE_DETECTED] 27 finding(s) across 1 XLSX file(s).
 
-STOP. Do not analyze, summarize, or trust numeric values extracted from
-the flagged file(s). The displayed values and extracted values differ.
-Report this discrepancy to the user before proceeding.
+STOP. Do not trust numeric values from the flagged file(s).
+Displayed values and extracted values differ.
 
   File: financials_poisoned.xlsx
-    [CRITICAL] sheet1!B13: Static format divergence: displays '$127,400,000' but raw value is 146500000.0
+    [CRITICAL] sheet1!B13: displays '$127,400,000' but raw value is 146500000.0
 ```
 
 ## Claude Code skill
 
-Install as a Claude Code plugin to get `/sheetguard:scan`:
-
 ```bash
-claude plugin add /path/to/sheetguard_skill
+claude plugin add /path/to/facevalue
 ```
 
-The skill runs automatically before document analysis in legal, financial, and compliance workflows. When divergence is detected, the LLM is instructed to stop and report rather than proceeding with tainted data.
+`/facevalue:scan` runs before document analysis in legal, financial, and compliance workflows.
 
 ## Research
 

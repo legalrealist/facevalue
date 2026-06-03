@@ -1,5 +1,5 @@
 """
-sheetguard.py — Parser differential scanner for XLSX, PDF, and DOCX.
+facevalue.py — Don't take documents at face value.
 
 Every extraction library trusts that the value it reads from a document
 is the value the document displays. This assumption is wrong. XLSX
@@ -200,7 +200,7 @@ def format_report(xlsx, pdf=None, docx=None):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: sheetguard.py <file|directory> [...]", file=sys.stderr)
+        print("Usage: facevalue.py <file|directory> [...]", file=sys.stderr)
         sys.exit(1)
 
     all_xlsx, all_pdf, all_docx = [], [], []

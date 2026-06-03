@@ -1,7 +1,7 @@
 {
-  "name": "sheetguard",
+  "name": "facevalue",
   "version": "1.0.0",
-  "description": "Detect parser differential attacks in XLSX, PDF, and DOCX files — where displayed content differs from extracted data",
+  "description": "Don't take documents at face value — detect parser differential attacks in XLSX, PDF, and DOCX",
   "author": "Hao Zhu",
   "license": "MIT",
   "skills": [
