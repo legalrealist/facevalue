@@ -1,0 +1,21 @@
+name: facevalue
+on: [push, pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install lxml pikepdf fonttools
+      - name: clean file passes
+        run: |
+          out=$(python3 facevalue.py fixtures/financials_clean.xlsx)
+          echo "$out"
+          echo "$out" | grep -q '^\[SAFE\]'
+      - name: poisoned file caught
+        run: |
+          out=$(python3 facevalue.py fixtures/financials_poisoned.xlsx)
+          echo "$out"
+          echo "$out" | grep -q '^\[DIVERGENCE_DETECTED\]'
