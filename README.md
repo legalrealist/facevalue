@@ -10,6 +10,14 @@ A cell in Excel shows `$127,400,000`. Every extraction library reads `146500000`
 
 Tested against Claude, ChatGPT, Gemini, and 9 extraction libraries. Zero detected the divergence.
 
+These aren't hypothetical — the underlying issues are known and open:
+
+- [pandas #61539](https://github.com/pandas-dev/pandas/issues/61539) — Excel "Text" formatting ignored, values silently coerced
+- [pandas #63101](https://github.com/pandas-dev/pandas/issues/63101) — number format strings don't preserve case
+- [noroboto](https://github.com/LegalQuants/noroboto) — font-level Unicode obfuscation defeats all tested LLM platforms
+
+The extraction libraries won't fix this — it's not a bug in their model, it's a gap between what they promise and what adversaries exploit. facevalue exists to close that gap at the application layer, and we're working to get these issues patched upstream.
+
 ## What it detects
 
 ### XLSX
@@ -58,13 +66,13 @@ Displayed values and extracted values differ.
     [CRITICAL] sheet1!B13: displays '$127,400,000' but raw value is 146500000.0
 ```
 
-## Claude Code skill
+## Claude Code plugin
 
 ```bash
-claude plugin add /path/to/facevalue
+claude plugins install facevalue
 ```
 
-`/facevalue:scan` runs before document analysis in legal, financial, and compliance workflows.
+`/facevalue:scan` runs before document analysis in legal, financial, and compliance workflows. A `PreToolUse` hook also auto-scans XLSX, PDF, and DOCX files before they're read.
 
 ## Research
 
