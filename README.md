@@ -16,7 +16,6 @@ These aren't hypothetical — the underlying issues are known and open:
 
 - [pandas #30272](https://github.com/pandas-dev/pandas/issues/30272) — unable to read number_format with openpyxl engine
 - [pandas #61539](https://github.com/pandas-dev/pandas/issues/61539) — Excel "Text" formatting ignored, values silently coerced
-- [pandas #63101](https://github.com/pandas-dev/pandas/issues/63101) — number format strings don't preserve case
 - [noroboto](https://github.com/LegalQuants/noroboto) — font-level Unicode obfuscation defeats all tested LLM platforms
 
 The extraction libraries won't fix this — it's not a bug in their model, it's a gap between what they promise and what adversaries exploit. facevalue exists to close that gap at the application layer, and we're working to get these issues patched upstream.
