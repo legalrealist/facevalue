@@ -14,6 +14,7 @@ Tested against Claude, ChatGPT, Gemini, and 9 extraction libraries. Zero detecte
 
 These aren't hypothetical — the underlying issues are known and open:
 
+- [pandas #30272](https://github.com/pandas-dev/pandas/issues/30272) — unable to read number_format with openpyxl engine
 - [pandas #61539](https://github.com/pandas-dev/pandas/issues/61539) — Excel "Text" formatting ignored, values silently coerced
 - [pandas #63101](https://github.com/pandas-dev/pandas/issues/63101) — number format strings don't preserve case
 - [noroboto](https://github.com/LegalQuants/noroboto) — font-level Unicode obfuscation defeats all tested LLM platforms
